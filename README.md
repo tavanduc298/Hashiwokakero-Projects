@@ -17,7 +17,7 @@ tác dụng từng file:
         + puzzle_parser.py           Đọc và xử lý file input
         + bridge_validator.py        Kiểm tra điều kiện hợp lệ của cầu
         + hashi_visualizer.py        Vẽ và hiển thị kết quả
-        + _init__.py                Để đánh dấu thư mục này là module Python
+        + _init__.py                định nghĩa toà độ
 
 -   tests/: Chứa các file kiểm thử
         + test_cnf_generator.py      Kiểm thử chuyển đổi CNF
