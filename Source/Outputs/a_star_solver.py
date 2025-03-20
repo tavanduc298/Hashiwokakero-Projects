@@ -1,5 +1,6 @@
 import heapq
 from copy import deepcopy
+from collections import deque
 
 class HashiState:
     """Đại diện cho một trạng thái trong Hashiwokakero."""
@@ -16,20 +17,27 @@ class HashiState:
     def calculate_heuristic(self):
         """Hàm heuristic: Đếm tổng số cầu còn thiếu để hoàn thành bài toán."""
         missing_bridges = 0
+        
+        # Kiểm tra nếu self.grid.islands là list, chuyển đổi thành dict
+        if isinstance(self.grid.islands, list):
+            if all(hasattr(island, "x") and hasattr(island, "y") and hasattr(island, "num") for island in self.grid.islands):
+                self.grid.islands = { (island.x, island.y): island.num for island in self.grid.islands }
+            else:
+                print("❌ ERROR: Định dạng dữ liệu của grid.islands không hợp lệ!")
+                return float('inf')
+
         for (x, y), num in self.grid.islands.items():
             connected_bridges = sum(1 for (a, b, c, d) in self.bridges if (x, y) in [(a, b), (c, d)])
             missing_bridges += abs(num - connected_bridges)
+        
         return missing_bridges
 
 def is_fully_connected(grid, bridges):
     """Kiểm tra xem tất cả các đảo có nằm trong cùng một thành phần liên thông không."""
-    from collections import deque
-    
     islands = list(grid.islands.keys())
     if not islands:
         return False
 
-    # Nếu không có cầu nào, chỉ có thể liên thông nếu chỉ có 1 đảo duy nhất
     if not bridges:
         return len(islands) == 1  
 
@@ -51,10 +59,14 @@ def is_fully_connected(grid, bridges):
     
     return len(visited) == len(islands)  # Nếu duyệt hết đảo thì đồ thị liên thông
 
-
 def get_neighbors(state):
     """Sinh ra các trạng thái kế tiếp bằng cách thêm cầu hợp lệ."""
     neighbors = []
+    
+    # Kiểm tra nếu `get_possible_bridges()` có tồn tại trong grid
+    if not hasattr(state.grid, "get_possible_bridges"):
+        raise AttributeError("Lớp grid thiếu phương thức get_possible_bridges()")
+
     for (x1, y1), (x2, y2) in state.grid.get_possible_bridges():
         if ((x1, y1, x2, y2) not in state.bridges) and state.grid.is_valid_bridge(state.bridges, (x1, y1, x2, y2)):
             new_bridges = set(state.bridges)
@@ -65,7 +77,22 @@ def get_neighbors(state):
 
 def a_star_solver(grid):
     """Giải Hashiwokakero bằng thuật toán A*."""
+
+    # Debug: Kiểm tra kiểu dữ liệu của grid.islands
+    print("DEBUG: Type of grid.islands =", type(grid.islands))
+    print("DEBUG: Content of grid.islands =", grid.islands)
+
+    # Nếu grid.islands không phải dictionary, thử chuyển đổi
+    if isinstance(grid.islands, list):
+        if all(hasattr(island, "x") and hasattr(island, "y") and hasattr(island, "num") for island in grid.islands):
+            grid.islands = { (island.x, island.y): island.num for island in grid.islands }
+        else:
+            print("❌ ERROR: Định dạng dữ liệu của grid.islands không hợp lệ!")
+            return None
+
+    # Khởi tạo trạng thái ban đầu
     initial_state = HashiState(grid, set(), 0)
+
     open_set = []
     heapq.heappush(open_set, initial_state)
     visited = set()
@@ -77,7 +104,7 @@ def a_star_solver(grid):
             return current.bridges  # Tìm thấy lời giải
         
         visited.add(frozenset(current.bridges))
-        
+
         for neighbor in get_neighbors(current):
             if frozenset(neighbor.bridges) not in visited:
                 heapq.heappush(open_set, neighbor)
@@ -87,7 +114,9 @@ def a_star_solver(grid):
 if __name__ == "__main__":
     from puzzle_parser import Puzzle  # Giả sử Puzzle là lớp xử lý đầu vào
     puzzle = Puzzle("data/puzzles/puzzle1.txt")
+
     print("DEBUG: Type of puzzle.islands =", type(puzzle.islands))
+
     solution = a_star_solver(puzzle)
     
     if solution:
