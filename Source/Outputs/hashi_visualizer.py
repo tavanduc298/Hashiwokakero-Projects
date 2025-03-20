@@ -49,6 +49,6 @@ def write_output_map(board, selected_vars, width, height):
                     map_grid[y][x] = "−" if count == 1 else "="
 
         # In kết quả
-        with open("Data\\solutions\\solution1.txt", "w", encoding="utf-8") as f:
+        with open("output.txt", "w", encoding="utf-8") as f:
             for row in map_grid:
                 f.write("[ " + " , ".join(row) + " ]\n")

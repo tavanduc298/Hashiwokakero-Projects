@@ -54,7 +54,7 @@ def export_cnf(board, filename="output.cnf"):
                 f.write(" ".join(str(lit) for lit in clause) + " 0\n")
 
         # ✅ Lưu reverse_var_map vào file reverse_map.pkl
-        with open("Data\\solutions\\Reverse_map.pkl", "wb") as f:
+        with open("Reverse_map.pkl", "wb") as f:
             pickle.dump(board.reverse_var_map, f)
 
         print(f"✅ CNF exported to '{filename}' with {num_vars} variables and {num_clauses} clauses.")

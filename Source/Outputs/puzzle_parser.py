@@ -1,4 +1,4 @@
-from src._init_ import *
+from _init_ import *
 
 def load_board_from_file(filename):
     matrix = []
