@@ -1,127 +1,158 @@
 import heapq
+import sys
 from copy import deepcopy
-from collections import deque
+from collections import defaultdict
+from _init_ import *
+from puzzle_parser import *
+from hashi_visualizer import *
+from cnf_generator import *
 
 class HashiState:
-    """Đại diện cho một trạng thái trong Hashiwokakero."""
-    def __init__(self, grid, bridges, cost):
-        self.grid = grid  # Bản đồ hiện tại
-        self.bridges = bridges  # Danh sách cầu hiện có (set)
-        self.cost = cost  # G(n): Chi phí đi từ đầu đến trạng thái này
+    def __init__(self, board, bridges, cost):
+        self.board = board
+        self.bridges = bridges  # {(x1, y1, x2, y2): count}
+        self.cost = cost
         self.heuristic = self.calculate_heuristic()
-        self.f_score = self.cost + self.heuristic  # F(n) = G(n) + H(n)
-    
-    def __lt__(self, other):
-        return self.f_score < other.f_score  # So sánh để dùng trong hàng đợi ưu tiên
-    
+
     def calculate_heuristic(self):
-        """Hàm heuristic: Đếm tổng số cầu còn thiếu để hoàn thành bài toán."""
-        missing_bridges = 0
-        
-        # Kiểm tra nếu self.grid.islands là list, chuyển đổi thành dict
-        if isinstance(self.grid.islands, list):
-            if all(hasattr(island, "x") and hasattr(island, "y") and hasattr(island, "num") for island in self.grid.islands):
-                self.grid.islands = { (island.x, island.y): island.num for island in self.grid.islands }
-            else:
-                print("❌ ERROR: Định dạng dữ liệu của grid.islands không hợp lệ!")
-                return float('inf')
+        total_missing = 0
+        for island in self.board.islands:
+            connected = sum(island.connections.values())
+            missing = max(0, island.required_bridges - connected)
 
-        for (x, y), num in self.grid.islands.items():
-            connected_bridges = sum(1 for (a, b, c, d) in self.bridges if (x, y) in [(a, b), (c, d)])
-            missing_bridges += abs(num - connected_bridges)
-        
-        return missing_bridges
+            # Ưu tiên đảo cô lập và xa trung tâm (dễ bị kẹt)
+            distance_score = abs(island.x - self.board.width // 2) + abs(island.y - self.board.height // 2)
 
-def is_fully_connected(grid, bridges):
-    """Kiểm tra xem tất cả các đảo có nằm trong cùng một thành phần liên thông không."""
-    islands = list(grid.islands.keys())
-    if not islands:
-        return False
+            total_missing += missing + distance_score * 0.2  # Hệ số có thể tinh chỉnh
 
-    if not bridges:
-        return len(islands) == 1  
+        num_disconnected = sum(1 for island in self.board.islands if not island.connections)
+        return total_missing + 5 * num_disconnected
 
-    visited = set()
-    queue = deque([islands[0]])  # Bắt đầu BFS từ đảo đầu tiên
+    def is_goal(self):
+        """Check if the puzzle is fully solved (all islands have required bridges)."""
+        for island in self.board.islands:
+            connected = sum(island.connections.values())
+            if connected != island.required_bridges:
+                return False
+        return True
+
+    def __lt__(self, other):
+        """Priority queue comparison: prioritize lower (cost + heuristic)."""
+        return (self.cost + self.heuristic) < (other.cost + other.heuristic)
     
-    while queue:
-        x, y = queue.popleft()
-        if (x, y) in visited:
-            continue
-        visited.add((x, y))
-        
-        # Thêm các đảo có kết nối với (x, y)
-        for (a, b, c, d) in bridges:
-            if (x, y) == (a, b) and (c, d) not in visited:
-                queue.append((c, d))
-            elif (x, y) == (c, d) and (a, b) not in visited:
-                queue.append((a, b))
+    def __eq__(self, other):
+        return isinstance(other, HashiState) and self.bridges == other.bridges
     
-    return len(visited) == len(islands)  # Nếu duyệt hết đảo thì đồ thị liên thông
+    def __hash__(self):
+        """Consistent hashing for visited states."""
+        normalized_bridges = frozenset(
+            (tuple(sorted([(x1, y1), (x2, y2)])), count) 
+            for (x1, y1, x2, y2), count in self.bridges.items()
+        )
+        return hash(normalized_bridges)
 
-def get_neighbors(state):
-    """Sinh ra các trạng thái kế tiếp bằng cách thêm cầu hợp lệ."""
+def decode_var(var, board):
+    """Decode CNF variable into a bridge (x1, y1, x2, y2, n)."""
+    for key, value in board.var_map.items():
+        if value == var:
+            (x1, y1), (x2, y2), n = key  # Unpack đúng định dạng
+            return x1, y1, x2, y2, n  # Trả về tuple 5 giá trị
+    return None
+
+def parse_cnf_file(cnf_path, board):
+    """Extract valid bridges from a CNF solution file."""
+    valid_bridges = set()
+
+    with open(cnf_path, "r") as file:
+        for line in file:
+            if line.startswith("c") or line.startswith("p"):  
+                continue  # Skip comments and problem definition
+
+            vars = list(map(int, line.strip().split()))[:-1]  # Remove trailing 0
+
+            for var in vars:
+                if var > 0:
+                    bridge = decode_var(var, board)
+                    if bridge is not None:  # ✅ Fix: Kiểm tra tránh lỗi TypeError
+                        valid_bridges.add(bridge)
+
+    return valid_bridges
+
+def get_neighbors(state, valid_bridges, visited_states):
     neighbors = []
-    
-    # Kiểm tra nếu `get_possible_bridges()` có tồn tại trong grid
-    if not hasattr(state.grid, "get_possible_bridges"):
-        raise AttributeError("Lớp grid thiếu phương thức get_possible_bridges()")
 
-    for (x1, y1), (x2, y2) in state.grid.get_possible_bridges():
-        if ((x1, y1, x2, y2) not in state.bridges) and state.grid.is_valid_bridge(state.bridges, (x1, y1, x2, y2)):
-            new_bridges = set(state.bridges)
-            new_bridges.add((x1, y1, x2, y2))
-            new_state = HashiState(state.grid, new_bridges, state.cost + 1)
-            neighbors.append(new_state)
+    for (x1, y1, x2, y2, max_n) in valid_bridges:
+        if (x1, y1) not in state.board.island_positions or (x2, y2) not in state.board.island_positions:
+            continue
+        if state.board._is_blocked(x1, y1, x2, y2):
+            continue
+
+        bridge_count = state.bridges.get((x1, y1, x2, y2), 0)
+        if bridge_count >= max_n:
+            continue
+
+        new_count = bridge_count + 1
+        new_board = state.board.clone()
+        new_bridges = state.bridges.copy()
+        new_bridges[(x1, y1, x2, y2)] = new_count
+
+        new_board.add_bridge(x1, y1, x2, y2, count=1)  # ✅ Chỉ cộng thêm 1 cầu
+
+        state_signature = tuple(sorted(new_bridges.items()))
+        if state_signature in visited_states:
+            continue
+        visited_states[state_signature] = True
+
+        new_state = HashiState(new_board, new_bridges, state.cost + 1)
+        neighbors.append(new_state)
+
     return neighbors
 
-def a_star_solver(grid):
-    """Giải Hashiwokakero bằng thuật toán A*."""
+def a_star_solver(board, cnf_path):
+    """Solve Hashiwokakero using A* search with CNF constraints."""
+    export_cnf(board, "solution.cnf")
+    load_reverse_map(board)
+    valid_bridges = parse_cnf_file(cnf_path, board)
+    print("Valid Bridges:", sorted(valid_bridges))  # ✅ Sorted for better readability
 
-    # Debug: Kiểm tra kiểu dữ liệu của grid.islands
-    print("DEBUG: Type of grid.islands =", type(grid.islands))
-    print("DEBUG: Content of grid.islands =", grid.islands)
+    for island in board.islands:
+        connected = sum(island.connections.values())
+        print(f"Island at ({island.x}, {island.y}) needs {island.required_bridges} bridges, currently {connected}.")
 
-    # Nếu grid.islands không phải dictionary, thử chuyển đổi
-    if isinstance(grid.islands, list):
-        if all(hasattr(island, "x") and hasattr(island, "y") and hasattr(island, "num") for island in grid.islands):
-            grid.islands = { (island.x, island.y): island.num for island in grid.islands }
-        else:
-            print("❌ ERROR: Định dạng dữ liệu của grid.islands không hợp lệ!")
-            return None
+    if not valid_bridges:
+        return None
 
-    # Khởi tạo trạng thái ban đầu
-    initial_state = HashiState(grid, set(), 0)
-
+    initial_state = HashiState(board, {}, 0)
     open_set = []
-    heapq.heappush(open_set, initial_state)
+    heapq.heappush(open_set, initial_state)  # ✅ Push trực tiếp HashiState (nhờ đã override __lt__)
     visited = set()
-    
+
+    steps = 0
+
     while open_set:
         current = heapq.heappop(open_set)
-        
-        if current.heuristic == 0 and is_fully_connected(grid, current.bridges):
-            return current.bridges  # Tìm thấy lời giải
-        
-        visited.add(frozenset(current.bridges))
+        steps += 1
 
-        for neighbor in get_neighbors(current):
-            if frozenset(neighbor.bridges) not in visited:
-                heapq.heappush(open_set, neighbor)
-    
-    return None  # Không tìm thấy lời giải
+        if current.is_goal():
+            print(f"✅ Solution found in {steps} steps")
 
-if __name__ == "__main__":
-    from puzzle_parser import Puzzle  # Giả sử Puzzle là lớp xử lý đầu vào
-    puzzle = Puzzle("data/puzzles/puzzle1.txt")
+            with open("output.txt", "w", encoding="utf-8") as f:
+                original_stdout = sys.stdout
+                sys.stdout = f
+                print_board_with_bridges(board, current.bridges)
+                sys.stdout = original_stdout  # Restore stdout sau khi ghi file
 
-    print("DEBUG: Type of puzzle.islands =", type(puzzle.islands))
+            print("✅ Đã ghi kết quả vào output.txt")
+            return current.bridges
 
-    solution = a_star_solver(puzzle)
-    
-    if solution:
-        print("✅ Lời giải tìm thấy:")
-        for bridge in solution:
-            print(bridge)
-    else:
-        print("❌ Không tìm thấy lời giải!")
+        state_signature = frozenset(current.bridges.items())
+        if state_signature in visited:
+            continue
+        visited.add(state_signature)
+
+        neighbors = get_neighbors(current, valid_bridges, visited_states={})
+        for neighbor in neighbors:
+            heapq.heappush(open_set, neighbor)
+
+    print("❌ No solution found")
+    return None

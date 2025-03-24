@@ -22,6 +22,6 @@ choice = input("👉 Nhập lựa chọn (1 hoặc 2): ").strip()
 if choice == "1":
     solve_with_pysat(board)
 elif choice == "2":
-    a_star_solver(board)
+    a_star_solver(board,"solution.cnf")
 else:
     print("❌ Lựa chọn không hợp lệ!")

@@ -58,3 +58,11 @@ def export_cnf(board, filename="output.cnf"):
             pickle.dump(board.reverse_var_map, f)
 
         print(f"✅ CNF exported to '{filename}' with {num_vars} variables and {num_clauses} clauses.")
+
+def load_reverse_map(board, filename="Reverse_map.pkl"):
+    try:
+        with open(filename, "rb") as f:
+            board.reverse_var_map = pickle.load(f)
+            board.var_map = {v: k for k, v in board.reverse_var_map.items()}
+    except FileNotFoundError:
+        print("❌ Reverse map file not found! Make sure to run export_cnf first.")
