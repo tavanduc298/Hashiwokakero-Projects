@@ -2,57 +2,60 @@ class Island:
     def __init__(self, x, y, required_bridges):
         self.x = x
         self.y = y
-        self.required_bridges = required_bridges
-        self.connections = {}
+        self.required_bridges = required_bridges # Số cầu cần có để hoàn thành đảo
+        self.connections = {} # Từ điển lưu các kết nối với các đảo khác
 
     def clone(self):
-        """Create a copy of the Island object, including its connections."""
-        # Use required_bridges instead of bridges_needed (since that's the correct attribute name)
-        new_island = Island(self.x, self.y, self.required_bridges)  # Properly pass `required_bridges`
-        new_island.connections = self.connections.copy()  # Copy the connections dictionary
+        """Tạo một bản sao của đối tượng Island, bao gồm cả các kết nối của nó."""
+        # Sử dụng đúng tên thuộc tính `required_bridges` khi tạo bản sao
+        new_island = Island(self.x, self.y, self.required_bridges)  # Tạo một đảo mới có cùng tọa độ và số cầu cần thiết
+        new_island.connections = self.connections.copy()  # Sao chép danh sách kết nối để tránh ảnh hưởng bản gốc
         return new_island
 
     def total_bridges(self):
+        """Tính tổng số cầu hiện có kết nối với đảo này."""
         return sum(self.connections.values())
 
     def is_satisfied(self):
+        """Kiểm tra xem số cầu hiện tại đã đúng với số cầu yêu cầu hay chưa."""
         return self.total_bridges() == self.required_bridges
 
 class Board:
     def __init__(self, width, height):
+        """Khởi tạo bảng chơi với kích thước width x height."""
         self.width = width
         self.height = height
         self.islands = []
-        self.island_positions = set()  # Thêm tập hợp lưu vị trí các đảo
-        self.var_map = {}  
-        self.reverse_var_map = {}  
-        self.clauses = []
-        self.variable_counter = 1
+        self.island_positions = set()  # Tập hợp lưu vị trí các đảo để tra cứu nhanh
+        self.var_map = {}  # Bản đồ biến, có thể dùng cho xử lý logic hoặc binding
+        self.reverse_var_map = {}  # Bản đồ biến ngược (để tra cứu ngược)
+        self.clauses = []   # Danh sách các ràng buộc (có thể dùng trong xử lý logic)
+        self.variable_counter = 1   # Bộ đếm để cấp phát biến mới nếu cần
 
     def clone(self):
-        """Create a copy of the Board object, including its islands and other attributes."""
-        # Create a new Board instance with the same width and height
+        """Tạo một bản sao của đối tượng Board, bao gồm các đảo và thuộc tính khác."""
         cloned_board = Board(self.width, self.height)
 
-        # Manually copy the list of islands
+        # Sao chép danh sách các đảo
         cloned_board.islands = []
         for island in self.islands:
-            cloned_island = island.clone()  # Call the clone method for each island
+            cloned_island = island.clone()  # Sao chép từng đảo bằng phương thức clone của Island
             cloned_board.islands.append(cloned_island)
 
-        # Manually copy other attributes
-        cloned_board.island_positions = self.island_positions.copy()  # Copy the set of island positions
-        cloned_board.var_map = self.var_map.copy()  # Copy the var_map dictionary
-        cloned_board.reverse_var_map = self.reverse_var_map.copy()  # Copy the reverse_var_map dictionary
-        cloned_board.clauses = self.clauses.copy()  # Copy the clauses list
-        cloned_board.variable_counter = self.variable_counter  # Copy the variable_counter
+        # Sao chép các thuộc tính khác
+        cloned_board.island_positions = self.island_positions.copy()
+        cloned_board.var_map = self.var_map.copy()
+        cloned_board.reverse_var_map = self.reverse_var_map.copy()
+        cloned_board.clauses = self.clauses.copy()
+        cloned_board.variable_counter = self.variable_counter
 
         return cloned_board
 
     def add_island(self, x, y, required_bridges):
-        island = Island(x, y, required_bridges)
-        self.islands.append(island)
-        self.island_positions.add((x, y))  # Cập nhật danh sách vị trí đảo
+        """Thêm một đảo vào bảng với tọa độ (x, y) và số cầu yêu cầu."""
+        island = Island(x, y, required_bridges) # Tạo đối tượng Island
+        self.islands.append(island) # Thêm đảo vào danh sách
+        self.island_positions.add((x, y))  # Cập nhật tập hợp vị trí đảo để tra cứu nhanh
 
     def add_bridge(self, x1, y1, x2, y2, count=1):
         """Thêm cầu giữa hai đảo trên bảng."""
@@ -60,42 +63,45 @@ class Board:
         island2 = self.get_island_at(x2, y2)
 
         if not island1 or not island2:
-            print(f"❌ ERROR: ({x1}, {y1}) or ({x2}, {y2}) is not an island!")
+            print(f"ERROR: ({x1}, {y1}) or ({x2}, {y2}) is not an island!")
             return  
 
-        # Kiểm tra xem đã có cầu chưa
+        # Nếu đã có cầu nối giữa hai đảo, tăng số lượng cầu
         if (x2, y2) in island1.connections:
             island1.connections[(x2, y2)] += count
             island2.connections[(x1, y1)] += count
-        else:
+        else:# Nếu chưa có cầu, tạo kết nối mới
             island1.connections[(x2, y2)] = count
             island2.connections[(x1, y1)] = count
 
     def get_island_at(self, x, y):
+        """Tìm và trả về đảo tại tọa độ (x, y), nếu không có trả về None."""
         for island in self.islands:
             if island.x == x and island.y == y:
                 return island
         return None
 
     def can_connect(self, island1, island2):
+        """Kiểm tra xem có thể kết nối hai đảo theo luật Hashiwokakero không."""
         if island1.x != island2.x and island1.y != island2.y:
-            return False
+            return False    # Hai đảo không cùng hàng hoặc cùng cột thì không thể nối cầu
 
+        # Kiểm tra có đảo nào chặn đường nối cầu không
         if island1.x == island2.x:
             y_range = range(min(island1.y, island2.y) + 1, max(island1.y, island2.y))
             for y in y_range:
                 if (island1.x, y) in self.island_positions:
-                    return False
+                    return False    # Có đảo nằm giữa hai điểm => không thể nối
         else:
             x_range = range(min(island1.x, island2.x) + 1, max(island1.x, island2.x))
             for x in x_range:
                 if (x, island1.y) in self.island_positions:
-                    return False
+                    return False     # Có đảo nằm giữa hai điểm => không thể nối
 
         return True
     
     def get_possible_bridges(self):
-        """Trả về tất cả các cặp đảo có thể nối được với nhau theo luật Hashi (gần nhất theo 4 hướng, không vướng đảo khác)."""
+        """Trả về danh sách các cặp đảo có thể kết nối với nhau."""
         possible = []
         for island in self.islands:
             x1, y1 = island.x, island.y
@@ -123,6 +129,7 @@ class Board:
         return possible
 
     def _is_blocked(self, x1, y1, x2, y2):
+        """Kiểm tra xem có đảo nào nằm giữa hai điểm không."""
         for island in self.islands:
             # Bỏ qua hai đầu cầu
             if (island.x, island.y) == (x1, y1) or (island.x, island.y) == (x2, y2):
@@ -139,23 +146,22 @@ class Board:
         return False
 
     def is_valid_bridge(self, current_bridges, new_bridge):
+        """Kiểm tra xem cầu mới có hợp lệ không (không trùng và không cắt cầu khác)."""
         x1, y1, x2, y2 = new_bridge
 
-        # Cầu trùng
+        # Kiểm tra trùng cầu
         if new_bridge in current_bridges or (x2, y2, x1, y1) in current_bridges:
             return False
 
         for bx1, by1, bx2, by2 in current_bridges:
-            # Cầu mới là dọc
-            if x1 == x2:
+            if x1 == x2: # Cầu mới là dọc
                 if bx1 == bx2:
                     if x1 == bx1 and not (max(y1, y2) < min(by1, by2) or min(y1, y2) > max(by1, by2)):
                         return False  # trùng trục dọc và giao nhau
                 elif by1 == by2:
                     if min(bx1, bx2) <= x1 <= max(bx1, bx2) and min(y1, y2) <= by1 <= max(y1, y2):
                         return False  # dọc-ngang cắt nhau
-            # Cầu mới là ngang
-            elif y1 == y2:
+            elif y1 == y2:  # Cầu mới là ngang
                 if by1 == by2:
                     if y1 == by1 and not (max(x1, x2) < min(bx1, bx2) or min(x1, x2) > max(bx1, bx2)):
                         return False  # trùng trục ngang và giao nhau

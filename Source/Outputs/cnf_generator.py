@@ -2,6 +2,18 @@ from itertools import combinations
 import pickle
 
 def get_var(board, island1, island2, bridge_num):
+        """
+    Lấy biến đại diện cho cầu giữa hai đảo trong CNF.
+    Nếu biến chưa tồn tại, nó sẽ được tạo mới.
+
+    Parameters:
+        board: Bảng chơi Hashiwokakero.
+        island1, island2: Hai đảo cần kết nối.
+        bridge_num: Số cầu (1 hoặc 2).
+
+    Returns:
+        ID của biến CNF tương ứng với cầu giữa hai đảo.
+    """
         key = tuple(sorted([(island1.x, island1.y), (island2.x, island2.y)])) + (bridge_num,)
         if key not in board.var_map:
             board.var_map[key] = board.variable_counter
@@ -10,7 +22,17 @@ def get_var(board, island1, island2, bridge_num):
         return board.var_map[key]
 
 def generate_cnf_constraints(board):
-        # Constraint: Mỗi cặp đảo có tối đa 2 cầu
+        """
+    Tạo các ràng buộc CNF cho bài toán Hashiwokakero.
+
+    Các ràng buộc bao gồm:
+    - Mỗi cặp đảo có tối đa 2 cầu.
+    - Tổng số cầu nối đến một đảo phải bằng yêu cầu của đảo đó.
+
+    Parameters:
+        board: Bảng chơi Hashiwokakero.
+    """
+        # Ràng buộc: Mỗi cặp đảo có tối đa 2 cầu
         for i, island1 in enumerate(board.islands):
             for j in range(i + 1, len(board.islands)):
                 island2 = board.islands[j]
@@ -33,6 +55,7 @@ def generate_cnf_constraints(board):
                     connected_vars += [v1, v2]
 
             # Ràng buộc AT MOST (≤ required_bridges)
+            # Nếu số cầu cần ≥ số biến chọn + 1 thì tổ hợp đó bị loại bỏ
             for comb in combinations(connected_vars, island.required_bridges + 1):
                 board.clauses.append([-v for v in comb])
 
@@ -44,6 +67,13 @@ def generate_cnf_constraints(board):
                     board.clauses.append([v for v in comb])
 
 def export_cnf(board, filename="output.cnf"):
+        """
+    Xuất các ràng buộc CNF ra file để sử dụng với bộ giải SAT.
+
+    Parameters:
+        board: Bảng chơi Hashiwokakero.
+        filename: Tên file CNF xuất ra.
+    """
         generate_cnf_constraints(board)
         num_vars = board.variable_counter - 1
         num_clauses = len(board.clauses)
@@ -53,16 +83,23 @@ def export_cnf(board, filename="output.cnf"):
             for clause in board.clauses:
                 f.write(" ".join(str(lit) for lit in clause) + " 0\n")
 
-        # ✅ Lưu reverse_var_map vào file reverse_map.pkl
+        # Lưu reverse_var_map vào file reverse_map.pkl
         with open("Reverse_map.pkl", "wb") as f:
             pickle.dump(board.reverse_var_map, f)
 
-        print(f"✅ CNF exported to '{filename}' with {num_vars} variables and {num_clauses} clauses.")
+        print(f"CNF exported to '{filename}' with {num_vars} variables and {num_clauses} clauses.")
 
 def load_reverse_map(board, filename="Reverse_map.pkl"):
+    """
+    Tải lại ánh xạ biến từ file để có thể giải mã kết quả từ SAT solver.
+
+    Parameters:
+        board: Bảng chơi Hashiwokakero.
+        filename: Tên file chứa ánh xạ biến.
+    """
     try:
         with open(filename, "rb") as f:
             board.reverse_var_map = pickle.load(f)
             board.var_map = {v: k for k, v in board.reverse_var_map.items()}
     except FileNotFoundError:
-        print("❌ Reverse map file not found! Make sure to run export_cnf first.")
+        print("Reverse map file not found! Make sure to run export_cnf first.")
