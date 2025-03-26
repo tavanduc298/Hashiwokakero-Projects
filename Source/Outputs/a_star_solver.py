@@ -129,7 +129,7 @@ def get_neighbors(state, valid_bridges, visited_states):
 
 def a_star_solver(board, cnf_path):
     """Giải bài toán Hashiwokakero sử dụng thuật toán A* với ràng buộc từ CNF."""
-    export_cnf(board, "solution.cnf")   # Xuất ràng buộc CNF từ board
+    export_cnf(board, cnf_path)   # Xuất ràng buộc CNF từ board
     load_reverse_map(board) # Tải bản đồ biến đảo ngược
     valid_bridges = parse_cnf_file(cnf_path, board) # Trích xuất cầu hợp lệ
     print("Valid Bridges:", sorted(valid_bridges))  # Hiển thị các cầu hợp lệ
