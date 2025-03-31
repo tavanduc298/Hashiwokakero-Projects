@@ -3,6 +3,7 @@ from hashi_visualizer import *
 from cnf_generator import *
 from sat_solver import solve_with_pysat
 from a_star_solver import a_star_solver
+from backtracking_solver import backtracking
 import os   # Thư viện thao tác với file hệ thống
 
 # Định nghĩa đường dẫn tuyệt đối cho file input
@@ -18,12 +19,15 @@ print_board(board)  # Hiển thị bàn chơi ban đầu (chỉ có các đảo)
 print("\n Chọn phương pháp giải:")
 print("1.   Giải bằng PySAT (CNF)")
 print("2.   Giải bằng A* (Heuristic)")
-choice = input(" Nhập lựa chọn (1 hoặc 2): ").strip()
+print("3.   Giải bằng Backtracking")
+choice = input(" Nhập lựa chọn (1 hoặc 2 hoặc 3): ").strip()
 
 # Xử lý lựa chọn của người dùng
 if choice == "1":
     solve_with_pysat(board)
 elif choice == "2":
     a_star_solver(board,"solution.cnf")
+elif choice == "3":
+    backtracking(board)
 else:
     print("Lựa chọn không hợp lệ!")

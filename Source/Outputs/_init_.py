@@ -4,6 +4,10 @@ class Island:
         self.y = y
         self.required_bridges = required_bridges # Số cầu cần có để hoàn thành đảo
         self.connections = {} # Từ điển lưu các kết nối với các đảo khác
+    
+    def total_bridges(self):
+        return self.current_bridges  # Đảm bảo phương thức này tồn tại
+
 
     def clone(self):
         """Tạo một bản sao của đối tượng Island, bao gồm cả các kết nối của nó."""
@@ -57,6 +61,36 @@ class Board:
         self.islands.append(island) # Thêm đảo vào danh sách
         self.island_positions.add((x, y))  # Cập nhật tập hợp vị trí đảo để tra cứu nhanh
 
+    def get_all_bridges(self):
+        """Trả về tất cả các cầu giữa các đảo trong bảng."""
+        bridges = []
+        for island in self.islands:
+            for (x2, y2), count in island.connections.items():
+                # Chỉ thêm cầu vào danh sách nếu nó chưa tồn tại, tránh trùng lặp
+                if (x2, y2) > (island.x, island.y):  # Đảm bảo không thêm trùng cầu đã được thêm trước
+                    bridges.append(((island.x, island.y), (x2, y2), count))
+        return bridges
+
+    def get_bridge_variable(self, bridge):
+        """Trả về biến liên quan đến cầu từ var_map, nếu không có thì tạo mới."""
+        if bridge not in self.var_map:
+            self.var_map[bridge] = self.variable_counter
+            self.reverse_var_map[self.variable_counter] = bridge
+            self.variable_counter += 1
+        return self.var_map[bridge]
+    
+    def get_bridge_count(self, bridge):
+        """Trả về số lượng cầu hiện tại giữa hai đảo."""
+        (x1, y1), (x2, y2) = bridge
+
+        island1 = self.get_island_at(x1, y1)
+        island2 = self.get_island_at(x2, y2)
+
+        if not island1 or not island2:
+            return 0  # Nếu một trong hai không phải đảo, không có cầu
+
+        return island1.connections.get((x2, y2), 0)
+
     def add_bridge(self, x1, y1, x2, y2, count=1):
         """Thêm cầu giữa hai đảo trên bảng."""
         island1 = self.get_island_at(x1, y1)
@@ -73,6 +107,23 @@ class Board:
         else:# Nếu chưa có cầu, tạo kết nối mới
             island1.connections[(x2, y2)] = count
             island2.connections[(x1, y1)] = count
+
+    def remove_bridge(self, x1, y1, x2, y2, count=1):
+        """Remove a specified number of bridges between two islands."""
+        island1 = self.get_island_at(x1, y1)
+        island2 = self.get_island_at(x2, y2)
+
+        if not island1 or not island2:
+            print(f"ERROR: ({x1}, {y1}) or ({x2}, {y2}) is not an island!")
+            return
+
+        if (x2, y2) in island1.connections:
+            island1.connections[(x2, y2)] -= count
+            island2.connections[(x1, y1)] -= count
+
+            if island1.connections[(x2, y2)] <= 0:
+                del island1.connections[(x2, y2)]
+                del island2.connections[(x1, y1)]
 
     def get_island_at(self, x, y):
         """Tìm và trả về đảo tại tọa độ (x, y), nếu không có trả về None."""
@@ -169,4 +220,78 @@ class Board:
                     if min(by1, by2) <= y1 <= max(by1, by2) and min(x1, x2) <= bx1 <= max(x1, x2):
                         return False  # ngang-dọc cắt nhau
         return True
-    
+
+    def can_add_bridge(self, x1, y1, x2, y2, count=1):
+        """Check if it's possible to add a bridge between two points."""
+        # Get islands at both endpoints
+        island1 = self.get_island_at(x1, y1)
+        island2 = self.get_island_at(x2, y2)
+        
+        if not island1 or not island2:
+            return False
+
+        # Check if adding more bridges would exceed the required number
+        current_bridges1 = island1.total_bridges()
+        current_bridges2 = island2.total_bridges()
+        
+        if (current_bridges1 + count > island1.required_bridges or 
+            current_bridges2 + count > island2.required_bridges):
+            return False
+
+        # Check if there's a path between islands
+        if not self.can_connect(island1, island2):
+            return False
+
+        # Check if adding this bridge would cross any existing bridges
+        bridge_points = [(x1, y1), (x2, y2)]
+        for existing_bridge in self.get_all_bridges():
+            if self._bridges_cross(bridge_points, [existing_bridge[0], existing_bridge[1]]):
+                return False
+
+        return True
+
+    def _bridges_cross(self, bridge1, bridge2):
+        """Helper method to check if two bridges cross each other."""
+        (x1, y1), (x2, y2) = bridge1
+        (x3, y3), (x4, y4) = bridge2
+
+        # Check if bridges are parallel
+        if (x1 == x2 and x3 == x4) or (y1 == y2 and y3 == y4):
+            return False
+
+        # Check if one bridge is vertical and other is horizontal
+        if x1 == x2:  # bridge1 is vertical
+            if y3 == y4:  # bridge2 is horizontal
+                # Check if they intersect
+                return (min(x3, x4) < x1 < max(x3, x4) and 
+                        min(y1, y2) < y3 < max(y1, y2))
+        else:  # bridge1 is horizontal
+            if x3 == x4:  # bridge2 is vertical
+                # Check if they intersect
+                return (min(x1, x2) < x3 < max(x1, x2) and 
+                        min(y3, y4) < y1 < max(y3, y4))
+        
+        return False
+
+    def is_bridge_valid(self, x1, y1, x2, y2, count=1):
+        """Check if adding a bridge would create a valid state."""
+        # Check if islands exist
+        island1 = self.get_island_at(x1, y1)
+        island2 = self.get_island_at(x2, y2)
+        
+        if not island1 or not island2:
+            return False
+            
+        # Check bridge count limits
+        current1 = island1.total_bridges()
+        current2 = island2.total_bridges()
+        
+        if current1 + count > island1.required_bridges:
+            return False
+        if current2 + count > island2.required_bridges:
+            return False
+            
+        # Check if bridge would cross existing bridges
+        return not any(self._bridges_cross([(x1, y1), (x2, y2)], 
+                                         [bridge[0], bridge[1]]) 
+                      for bridge in self.get_all_bridges())
