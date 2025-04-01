@@ -24,6 +24,32 @@ class Island:
         """Kiểm tra xem số cầu hiện tại đã đúng với số cầu yêu cầu hay chưa."""
         return self.total_bridges() == self.required_bridges
 
+    def verify_bridge_count(self):
+        """Kiểm tra số cầu có đúng yêu cầu không"""
+        current = sum(self.connections.values())
+        if current != self.required_bridges:
+            return False
+        return True
+        
+    def get_bridge_info(self):
+        """Trả về thông tin số cầu hiện tại"""
+        return f"Island at ({self.x},{self.y}): {self.total_bridges()}/{self.required_bridges} bridges"
+
+    def get_remaining_bridges(self):
+        """Trả về số cầu còn thiếu"""
+        return self.required_bridges - self.total_bridges()
+
+    def get_current_bridges(self):
+        """Trả về thông tin chi tiết các cầu hiện tại"""
+        bridges = []
+        for (x, y), count in self.connections.items():
+            bridges.append((x, y, count))
+        return bridges
+
+    def can_add_more_bridges(self, count=1):
+        """Kiểm tra xem có thể thêm cầu không"""
+        return self.total_bridges() + count <= self.required_bridges
+
 class Board:
     def __init__(self, width, height):
         """Khởi tạo bảng chơi với kích thước width x height."""
@@ -222,33 +248,25 @@ class Board:
         return True
 
     def can_add_bridge(self, x1, y1, x2, y2, count=1):
-        """Check if it's possible to add a bridge between two points."""
-        # Get islands at both endpoints
+        """Kiểm tra có thể thêm cầu không"""
         island1 = self.get_island_at(x1, y1)
         island2 = self.get_island_at(x2, y2)
         
         if not island1 or not island2:
             return False
-
-        # Check if adding more bridges would exceed the required number
-        current_bridges1 = island1.total_bridges()
-        current_bridges2 = island2.total_bridges()
-        
-        if (current_bridges1 + count > island1.required_bridges or 
-            current_bridges2 + count > island2.required_bridges):
+            
+        # Kiểm tra số cầu không vượt quá yêu cầu
+        if not island1.can_add_more_bridges(count) or not island2.can_add_more_bridges(count):
             return False
-
-        # Check if there's a path between islands
+            
+        # Kiểm tra có thể kết nối
         if not self.can_connect(island1, island2):
             return False
-
-        # Check if adding this bridge would cross any existing bridges
-        bridge_points = [(x1, y1), (x2, y2)]
-        for existing_bridge in self.get_all_bridges():
-            if self._bridges_cross(bridge_points, [existing_bridge[0], existing_bridge[1]]):
-                return False
-
-        return True
+            
+        # Kiểm tra không cắt cầu khác
+        return not any(self._bridges_cross([(x1, y1), (x2, y2)], 
+                                         [b[0], b[1]]) 
+                      for b in self.get_all_bridges())
 
     def _bridges_cross(self, bridge1, bridge2):
         """Helper method to check if two bridges cross each other."""
@@ -295,3 +313,20 @@ class Board:
         return not any(self._bridges_cross([(x1, y1), (x2, y2)], 
                                          [bridge[0], bridge[1]]) 
                       for bridge in self.get_all_bridges())
+
+    def get_connected_islands(self, x, y):
+        """Trả về danh sách các đảo được kết nối trực tiếp với đảo tại (x,y)"""
+        island = self.get_island_at(x, y)
+        if not island:
+            return []
+            
+        connected = []
+        for (nx, ny) in island.connections.keys():
+            connected_island = self.get_island_at(nx, ny)
+            if connected_island:
+                connected.append(connected_island)
+        return connected
+
+    def verify_all_bridges(self):
+        """Kiểm tra tất cả các đảo có đúng số cầu không"""
+        return all(island.verify_bridge_count() for island in self.islands)
