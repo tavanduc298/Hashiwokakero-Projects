@@ -5,6 +5,7 @@ from sat_solver import solve_with_pysat
 from a_star_solver import a_star_solver
 from backtracking_solver import backtracking
 from brute_force_solver import solve_brute_force
+from compare_algorithms import compare_algorithms
 import os   # Thư viện thao tác với file hệ thống
 
 # Định nghĩa đường dẫn tuyệt đối cho file input
@@ -22,7 +23,8 @@ print("1. Giải bằng PySAT (CNF)")
 print("2. Giải bằng A* (Heuristic)")
 print("3. Giải bằng Backtracking")
 print("4. Giải bằng Brute-force")
-choice = input("Nhập lựa chọn (1 hoặc 2 hoặc 3 hoặc 4): ").strip()
+print("5. So sánh thời gian chạy của các thuật toán")
+choice = input("Nhập lựa chọn (1 -> 5): ").strip()
 
 # Xử lý lựa chọn của người dùng
 if choice == "1":
@@ -33,5 +35,7 @@ elif choice == "3":
     backtracking(board)
 elif choice == "4":
     solve_brute_force(board)
+elif choice == "5":
+    compare_algorithms(board)
 else:
     print("Lựa chọn không hợp lệ!")
